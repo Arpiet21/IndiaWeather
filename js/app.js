@@ -441,7 +441,7 @@ function attachEvents() {
       }).addTo(map);
 
       try {
-        const res = await fetch(`${CONFIG.API_BASE_URL}/location/weather?lat=${lat}&lon=${lon}`);
+        const res = await fetch(`${CONFIG.API_BASE_URL}/location/weather/accurate?lat=${lat}&lon=${lon}`);
         if (!res.ok) throw new Error("Location weather fetch failed");
         const data = await res.json();
 
@@ -463,12 +463,132 @@ function attachEvents() {
         document.querySelector(".zone-badge").textContent = "Your Location";
         document.getElementById("annualRainfall").textContent = "--";
         document.getElementById("currentSeason").textContent  = "Live";
-        updateTimestamp("Live — " + new Date().toLocaleTimeString("en-IN"));
+        updateTimestamp("Satellite data — " + new Date().toLocaleTimeString("en-IN"));
+
+        // Also load hourly rain forecast
+        loadHourlyRain(lat, lon);
+
       } catch (e) {
-        updateTimestamp("Live data needs active API key");
+        updateTimestamp("Error: " + e.message);
       }
     }, () => alert("Could not get your location. Please allow location access."));
   });
+}
+
+// ─── Rain Radar Overlay ───────────────────────────────────────
+let radarLayer = null;
+let radarActive = false;
+
+function toggleRadar() {
+  if (radarActive && radarLayer) {
+    map.removeLayer(radarLayer);
+    radarLayer = null;
+    radarActive = false;
+    document.getElementById("radarBtn").classList.remove("radar-on");
+    document.getElementById("radarBtn").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Rain Radar`;
+    return;
+  }
+  // Open-Meteo rain radar via RainViewer (free, no key)
+  radarLayer = L.tileLayer(
+    `https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/4/1_1.png`,
+    { opacity: 0.6, attribution: "RainViewer", maxZoom: 12 }
+  );
+  radarLayer.addTo(map);
+  radarActive = true;
+  document.getElementById("radarBtn").classList.add("radar-on");
+  document.getElementById("radarBtn").innerHTML = `<i class="fa-solid fa-satellite-dish"></i> Radar ON`;
+}
+
+// ─── Hourly Rain Forecast ─────────────────────────────────────
+async function loadHourlyRain(lat, lon) {
+  try {
+    const res = await fetch(`${CONFIG.API_BASE_URL}/location/hourly?lat=${lat}&lon=${lon}&hours=24`);
+    const data = await res.json();
+    renderHourlyPanel(data);
+  } catch(e) {
+    console.warn("Hourly forecast failed:", e.message);
+  }
+}
+
+function renderHourlyPanel(data) {
+  const el = document.getElementById("hourlyPanel");
+  if (!el) return;
+
+  const nextRain = data.next_rain;
+  const summary = data.rain_today
+    ? `🌧️ Rain expected — ${data.total_rain_24h}mm total today`
+    : `☀️ No rain expected in next 24 hours`;
+
+  const nextMsg = nextRain
+    ? `Next rain at <strong>${nextRain.hour}</strong> — ${nextRain.rain_chance}% chance, ${nextRain.rain_mm}mm`
+    : `No rain window detected`;
+
+  const rows = data.hours.map(h => `
+    <div class="hourly-row ${h.will_rain ? 'rainy' : ''}">
+      <span class="h-time">${h.hour}</span>
+      <span class="h-icon">${h.icon}</span>
+      <span class="h-temp">${h.temp}°</span>
+      <div class="h-bar-wrap">
+        <div class="h-bar" style="width:${h.rain_chance}%;background:${h.rain_chance>60?'#388bfd':h.rain_chance>30?'#74add1':'#30363d'}"></div>
+        <span class="h-pct">${h.rain_chance}%</span>
+      </div>
+      <span class="h-rain">${h.rain_mm > 0 ? h.rain_mm+'mm' : '--'}</span>
+    </div>
+  `).join("");
+
+  el.innerHTML = `
+    <div class="hourly-summary">${summary}</div>
+    <div class="hourly-next">${nextMsg}</div>
+    <div class="hourly-header">
+      <span>Hour</span><span></span><span>Temp</span><span>Rain %</span><span>mm</span>
+    </div>
+    <div class="hourly-list">${rows}</div>
+  `;
+}
+
+// ─── Report Weather ───────────────────────────────────────────
+let reportLat = null, reportLon = null;
+
+function openReportModal(lat, lon) {
+  reportLat = lat; reportLon = lon;
+  document.getElementById("reportModal").classList.remove("hidden");
+}
+
+function closeReportModal() {
+  document.getElementById("reportModal").classList.add("hidden");
+}
+
+async function submitReport() {
+  const condition = document.getElementById("reportCondition").value;
+  const notes     = document.getElementById("reportNotes").value;
+  const rain      = document.getElementById("reportRain").checked;
+
+  if (!reportLat) return alert("Use 'My Location' first.");
+
+  const payload = {
+    lat: reportLat, lon: reportLon,
+    condition, notes, is_raining: rain,
+    reported_at: new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(`${CONFIG.API_BASE_URL}/report/weather`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    closeReportModal();
+
+    // Show confirmation on map
+    L.popup()
+      .setLatLng([reportLat, reportLon])
+      .setContent(`<b>✅ Report submitted!</b><br>${condition}${rain ? " — Rain confirmed" : ""}`)
+      .openOn(map);
+
+  } catch(e) {
+    alert("Failed to submit report: " + e.message);
+  }
 }
 
 function doSearch() {

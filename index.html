@@ -36,6 +36,9 @@
       <button class="btn-locate" id="locateBtn">
         <i class="fa-solid fa-location-dot"></i> My Location
       </button>
+      <button class="btn-radar" id="radarBtn" onclick="toggleRadar()">
+        <i class="fa-solid fa-satellite-dish"></i> Rain Radar
+      </button>
       <div class="last-updated">
         <i class="fa-solid fa-rotate"></i>
         <span id="lastUpdated">Updating...</span>
@@ -215,6 +218,24 @@
         </div>
       </div>
 
+      <!-- Hourly Rain Forecast -->
+      <div class="panel">
+        <h3><i class="fa-solid fa-cloud-rain"></i> Hourly Rain Forecast</h3>
+        <div id="hourlyPanel">
+          <p class="placeholder-text">Click "My Location" to see hourly rain forecast</p>
+        </div>
+      </div>
+
+      <!-- Report Weather -->
+      <div class="panel report-panel">
+        <h3><i class="fa-solid fa-circle-exclamation"></i> Ground Reality</h3>
+        <p class="report-desc">API data wrong? Report what you actually see.</p>
+        <button class="btn-report" onclick="openReportModal(reportLat, reportLon)">
+          <i class="fa-solid fa-pen-to-square"></i> Report Actual Weather
+        </button>
+        <div id="nearbyReports"></div>
+      </div>
+
       <!-- AQI Detail Panel -->
       <div class="panel">
         <h3><i class="fa-solid fa-smog"></i> Air Quality Index</h3>
@@ -273,6 +294,41 @@
       <span>Sources: OpenWeatherMap · IMD · Open-Meteo</span>
     </div>
   </footer>
+
+  <!-- Report Weather Modal -->
+  <div class="modal-overlay hidden" id="reportModal">
+    <div class="modal">
+      <h3><i class="fa-solid fa-cloud-sun-rain"></i> Report Actual Weather</h3>
+      <p>What is the weather like at your location right now?</p>
+      <div class="modal-field">
+        <label>Condition</label>
+        <select id="reportCondition">
+          <option value="Clear Sky">☀️ Clear Sky</option>
+          <option value="Partly Cloudy">⛅ Partly Cloudy</option>
+          <option value="Overcast">☁️ Overcast</option>
+          <option value="Light Rain" selected>🌧️ Light Rain</option>
+          <option value="Heavy Rain">⛈️ Heavy Rain</option>
+          <option value="Drizzle">🌦️ Drizzle</option>
+          <option value="Thunderstorm">⛈️ Thunderstorm</option>
+          <option value="Fog/Haze">🌫️ Fog / Haze</option>
+          <option value="Heatwave">🔥 Heatwave</option>
+          <option value="Dust Storm">🌪️ Dust Storm</option>
+        </select>
+      </div>
+      <div class="modal-field checkbox">
+        <input type="checkbox" id="reportRain" />
+        <label for="reportRain">It is currently raining at my location</label>
+      </div>
+      <div class="modal-field">
+        <label>Notes (optional)</label>
+        <input type="text" id="reportNotes" placeholder="e.g. Heavy rain started 10 mins ago" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-submit" onclick="submitReport()">Submit Report</button>
+        <button class="btn-cancel" onclick="closeReportModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

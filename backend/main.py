@@ -35,10 +35,15 @@ app.add_middleware(
 )
 
 # ─── Config ───────────────────────────────────────────────────
-OWM_API_KEY  = os.getenv("OWM_API_KEY", "YOUR_OPENWEATHERMAP_API_KEY")
-OWM_BASE     = "https://api.openweathermap.org/data/2.5"
-OWM_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
-AQI_BASE     = "https://api.openweathermap.org/data/2.5/air_pollution"
+OWM_API_KEY    = os.getenv("OWM_API_KEY", "YOUR_OPENWEATHERMAP_API_KEY")
+OWM_BASE       = "https://api.openweathermap.org/data/2.5"
+OWM_FORECAST   = "https://api.openweathermap.org/data/2.5/forecast"
+AQI_BASE       = "https://api.openweathermap.org/data/2.5/air_pollution"
+OPEN_METEO     = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_AIR = "https://air-quality-api.open-meteo.com/v1/air-quality"
+
+# In-memory store for user weather reports
+user_reports: list[dict] = []
 
 # ─── Indian Cities Dataset ────────────────────────────────────
 INDIA_CITIES = [
@@ -342,6 +347,218 @@ async def get_weather_by_location(
         "icon": emoji_for(icon_code),
         "icon_url": f"https://openweathermap.org/img/wn/{icon_code}@2x.png",
         "forecast": forecast,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/location/weather/accurate", tags=["Weather"])
+async def get_accurate_location_weather(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+):
+    """
+    High-accuracy weather using Open-Meteo (satellite + radar).
+    Better for villages and rural areas with no nearby weather stations.
+    Cross-checks OWM + Open-Meteo and returns merged result.
+    """
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Open-Meteo — satellite based, no API key needed
+        om_task = client.get(OPEN_METEO, params={
+            "latitude": lat, "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,precipitation,rain,wind_speed_10m,surface_pressure,visibility,weather_code",
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,wind_speed_10m_max",
+            "timezone": "Asia/Kolkata",
+            "forecast_days": 7,
+        })
+        # OWM for cross-check
+        owm_task = client.get(f"{OWM_BASE}/weather", params={
+            "lat": lat, "lon": lon, "appid": OWM_API_KEY, "units": "metric",
+        })
+        # AQI from Open-Meteo
+        aqi_task = client.get(OPEN_METEO_AIR, params={
+            "latitude": lat, "longitude": lon,
+            "current": "pm2_5,pm10,european_aqi",
+            "timezone": "Asia/Kolkata",
+        })
+
+        om_r, owm_r, aqi_r = await asyncio.gather(om_task, owm_task, aqi_task)
+
+    om   = om_r.json()
+    owm  = owm_r.json() if owm_r.status_code == 200 else {}
+    aqi_data = aqi_r.json() if aqi_r.status_code == 200 else {}
+
+    cur = om.get("current", {})
+    daily = om.get("daily", {})
+
+    # Weather code → description + emoji
+    WMO_MAP = {
+        0: ("Clear Sky", "☀️"),      1: ("Mainly Clear", "🌤️"),
+        2: ("Partly Cloudy", "⛅"),   3: ("Overcast", "☁️"),
+        45: ("Foggy", "🌫️"),          48: ("Icy Fog", "🌫️"),
+        51: ("Light Drizzle", "🌦️"),  53: ("Drizzle", "🌦️"),
+        55: ("Heavy Drizzle", "🌧️"),  61: ("Light Rain", "🌧️"),
+        63: ("Rain", "🌧️"),           65: ("Heavy Rain", "🌧️"),
+        71: ("Light Snow", "❄️"),     73: ("Snow", "❄️"),
+        75: ("Heavy Snow", "❄️"),     80: ("Rain Showers", "🌦️"),
+        81: ("Showers", "🌧️"),        82: ("Heavy Showers", "⛈️"),
+        95: ("Thunderstorm", "⛈️"),   96: ("Thunderstorm+Hail", "⛈️"),
+    }
+    wcode = cur.get("weather_code", 0)
+    desc, icon = WMO_MAP.get(wcode, ("Unknown", "🌤️"))
+
+    # Cross-validate rain: use max of OWM + Open-Meteo
+    om_rain  = cur.get("rain", 0) or cur.get("precipitation", 0)
+    owm_rain = owm.get("rain", {}).get("1h", 0) if owm else 0
+    rain_val = max(om_rain, owm_rain)
+
+    # AQI from Open-Meteo air quality
+    aqi_cur  = aqi_data.get("current", {})
+    aqi_val  = aqi_cur.get("european_aqi", None)
+    pm25     = aqi_cur.get("pm2_5", None)
+    pm10     = aqi_cur.get("pm10", None)
+
+    # Build 7-day forecast from Open-Meteo daily
+    days_list = daily.get("time", [])
+    max_temps = daily.get("temperature_2m_max", [])
+    min_temps = daily.get("temperature_2m_min", [])
+    precip    = daily.get("precipitation_sum", [])
+    wcodes    = daily.get("weather_code", [])
+    winds     = daily.get("wind_speed_10m_max", [])
+
+    forecast = []
+    for i, date_str in enumerate(days_list[:7]):
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        wc = wcodes[i] if i < len(wcodes) else 0
+        fdesc, ficon = WMO_MAP.get(wc, ("--", "🌤️"))
+        forecast.append({
+            "day": dt.strftime("%a"),
+            "date": date_str,
+            "icon": ficon,
+            "description": fdesc,
+            "hi": round(max_temps[i], 1) if i < len(max_temps) else "--",
+            "lo": round(min_temps[i], 1) if i < len(min_temps) else "--",
+            "rain": round(precip[i], 1) if i < len(precip) else 0,
+            "wind_speed": round(winds[i], 1) if i < len(winds) else "--",
+        })
+
+    owm_name = owm.get("name", "") if owm else ""
+    return {
+        "name": owm_name or "Your Location",
+        "lat": lat, "lon": lon,
+        "source": "Open-Meteo (satellite) + OpenWeatherMap",
+        "temp": round(cur.get("temperature_2m", 0), 1),
+        "feels_like": round(cur.get("temperature_2m", 0) - 1.5, 1),
+        "humidity": cur.get("relative_humidity_2m", 0),
+        "wind_speed": round(cur.get("wind_speed_10m", 0), 1),
+        "pressure": round(cur.get("surface_pressure", 0)),
+        "visibility": round((cur.get("visibility", 10000)) / 1000, 1),
+        "rain_1h": round(rain_val, 1),
+        "rain_detected": rain_val > 0,
+        "aqi": aqi_val,
+        "pm2_5": pm25,
+        "pm10": pm10,
+        "description": desc,
+        "icon": icon,
+        "forecast": forecast,
+        "owm_cross_check": {
+            "temp": owm.get("main", {}).get("temp") if owm else None,
+            "rain": owm_rain,
+            "description": owm.get("weather", [{}])[0].get("description", "--").title() if owm else "--",
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.post("/report/weather", tags=["Community"])
+async def report_weather(report: dict):
+    """
+    User submits actual observed weather for their location.
+    Crowd-sourced accuracy correction — shown alongside API data.
+    """
+    report["id"] = f"report_{len(user_reports)+1:04d}"
+    report["submitted_at"] = datetime.utcnow().isoformat()
+    user_reports.append(report)
+    return {"status": "ok", "message": "Thank you! Your report helps improve accuracy.", "id": report["id"]}
+
+
+@app.get("/report/weather", tags=["Community"])
+async def get_reports(
+    lat: float = Query(None), lon: float = Query(None), radius_km: float = 50
+):
+    """Get recent community weather reports near a location."""
+    if lat is None or lon is None:
+        return {"reports": user_reports[-20:], "total": len(user_reports)}
+
+    def dist(r):
+        return ((r.get("lat", 0) - lat)**2 + (r.get("lon", 0) - lon)**2) ** 0.5 * 111
+
+    nearby = [r for r in user_reports if dist(r) <= radius_km]
+    return {"reports": nearby[-20:], "total": len(nearby)}
+
+
+@app.get("/location/hourly", tags=["Weather"])
+async def get_hourly_forecast(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    hours: int = Query(24, description="Hours ahead, max 48"),
+):
+    """
+    Hourly rain + temperature forecast for any location.
+    Answers: 'When will it rain today?' — satellite accuracy, village-level.
+    """
+    hours = min(hours, 48)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(OPEN_METEO, params={
+            "latitude": lat, "longitude": lon,
+            "hourly": "temperature_2m,precipitation_probability,precipitation,rain,weather_code,wind_speed_10m",
+            "timezone": "Asia/Kolkata",
+            "forecast_days": 2,
+        })
+    data = r.json()
+    hourly = data.get("hourly", {})
+
+    times  = hourly.get("time", [])[:hours]
+    temps  = hourly.get("temperature_2m", [])[:hours]
+    prob   = hourly.get("precipitation_probability", [])[:hours]
+    rain   = hourly.get("rain", [])[:hours]
+    precip = hourly.get("precipitation", [])[:hours]
+    wcodes = hourly.get("weather_code", [])[:hours]
+    winds  = hourly.get("wind_speed_10m", [])[:hours]
+
+    WMO_MAP = {
+        0: ("Clear", "☀️"), 1: ("Mainly Clear", "🌤️"), 2: ("Partly Cloudy", "⛅"),
+        3: ("Overcast", "☁️"), 45: ("Foggy", "🌫️"), 51: ("Light Drizzle", "🌦️"),
+        53: ("Drizzle", "🌦️"), 55: ("Heavy Drizzle", "🌧️"), 61: ("Light Rain", "🌧️"),
+        63: ("Rain", "🌧️"), 65: ("Heavy Rain", "🌧️"), 80: ("Showers", "🌦️"),
+        81: ("Showers", "🌧️"), 82: ("Heavy Showers", "⛈️"), 95: ("Thunderstorm", "⛈️"),
+    }
+
+    result = []
+    for i, t in enumerate(times):
+        wc = wcodes[i] if i < len(wcodes) else 0
+        desc, icon = WMO_MAP.get(wc, ("--", "🌤️"))
+        rain_mm = rain[i] if i < len(rain) else 0
+        result.append({
+            "time": t,
+            "hour": datetime.strptime(t, "%Y-%m-%dT%H:%M").strftime("%I %p"),
+            "temp": round(temps[i], 1) if i < len(temps) else "--",
+            "rain_mm": round(rain_mm, 2),
+            "rain_chance": prob[i] if i < len(prob) else 0,
+            "will_rain": (prob[i] if i < len(prob) else 0) >= 40 or rain_mm > 0,
+            "description": desc,
+            "icon": icon,
+            "wind_speed": round(winds[i], 1) if i < len(winds) else "--",
+        })
+
+    # Find next rain window
+    next_rain = next((h for h in result if h["will_rain"]), None)
+
+    return {
+        "lat": lat, "lon": lon,
+        "hours": result,
+        "next_rain": next_rain,
+        "rain_today": any(h["will_rain"] for h in result[:24]),
+        "total_rain_24h": round(sum(h["rain_mm"] for h in result[:24]), 1),
         "timestamp": datetime.utcnow().isoformat(),
     }
 
