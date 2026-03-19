@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"d:/Angel Whisper/Learn Coding/Claude Code/Weather App/css\")",
+      "Bash(mkdir -p \"d:/Angel Whisper/Learn Coding/Claude Code/Weather App/js\")",
+      "Bash(mkdir -p \"d:/Angel Whisper/Learn Coding/Claude Code/Weather App/assets\")",
+      "Bash(python -m pip install fastapi uvicorn[standard] httpx pydantic python-dotenv)",
+      "Bash(python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(python -m http.server 3000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/index.html)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s \"https://api.openweathermap.org/data/2.5/weather?lat=23.5&lon=79.5&appid=6ad009b9b9276360ac5d9d6accb14595&units=metric\")",
+      "Bash(curl -s \"http://localhost:8000/weather/location?lat=23.5&lon=79.5\")",
+      "Bash(curl -s \"http://localhost:8000/location/weather?lat=23.5&lon=79.5\")",
+      "Bash(curl -s \"http://localhost:8000/weather/all\")",
+      "Bash(gh --version)",
+      "Bash(git --version)"
+    ]
+  }
+}

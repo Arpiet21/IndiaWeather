@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndiaWeather — Interactive Climate Map</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <i class="fa-solid fa-cloud-sun"></i>
+        <span>IndiaWeather</span>
+      </div>
+      <p class="tagline">Real-time Indian Climate Map</p>
+    </div>
+    <div class="header-center">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="Search city, state or district..." />
+        <button id="searchBtn">Search</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-locate" id="locateBtn">
+        <i class="fa-solid fa-location-dot"></i> My Location
+      </button>
+      <div class="last-updated">
+        <i class="fa-solid fa-rotate"></i>
+        <span id="lastUpdated">Updating...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="app-container">
+
+    <!-- ===== LEFT SIDEBAR — Layer Controls ===== -->
+    <aside class="sidebar-left">
+      <div class="panel">
+        <h3><i class="fa-solid fa-layer-group"></i> Map Layers</h3>
+        <div class="layer-buttons">
+          <button class="layer-btn active" data-layer="temperature">
+            <i class="fa-solid fa-thermometer-half"></i>
+            <span>Temperature</span>
+          </button>
+          <button class="layer-btn" data-layer="rainfall">
+            <i class="fa-solid fa-cloud-rain"></i>
+            <span>Rainfall</span>
+          </button>
+          <button class="layer-btn" data-layer="wind">
+            <i class="fa-solid fa-wind"></i>
+            <span>Wind</span>
+          </button>
+          <button class="layer-btn" data-layer="humidity">
+            <i class="fa-solid fa-droplet"></i>
+            <span>Humidity</span>
+          </button>
+          <button class="layer-btn" data-layer="aqi">
+            <i class="fa-solid fa-smog"></i>
+            <span>AQI</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><i class="fa-solid fa-bell"></i> Active Alerts</h3>
+        <div id="alertsList">
+          <div class="alert-item orange">
+            <i class="fa-solid fa-fire"></i>
+            <div>
+              <strong>Heatwave Warning</strong>
+              <p>Rajasthan, Gujarat — 42°C+</p>
+            </div>
+          </div>
+          <div class="alert-item blue">
+            <i class="fa-solid fa-cloud-showers-heavy"></i>
+            <div>
+              <strong>Heavy Rainfall</strong>
+              <p>Kerala, Karnataka Coast</p>
+            </div>
+          </div>
+          <div class="alert-item green">
+            <i class="fa-solid fa-circle-check"></i>
+            <div>
+              <strong>Monsoon Active</strong>
+              <p>South India — Normal</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><i class="fa-solid fa-cloud-sun-rain"></i> Monsoon Tracker</h3>
+        <div class="monsoon-status">
+          <div class="monsoon-item">
+            <span class="label">SW Monsoon</span>
+            <span class="badge active">Active</span>
+          </div>
+          <div class="monsoon-item">
+            <span class="label">Onset (Kerala)</span>
+            <span class="value">Jun 1</span>
+          </div>
+          <div class="monsoon-item">
+            <span class="label">Coverage</span>
+            <span class="value">68% of India</span>
+          </div>
+          <div class="monsoon-item">
+            <span class="label">Rainfall Anomaly</span>
+            <span class="value positive">+12%</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== MAP AREA ===== -->
+    <main class="map-wrapper">
+      <div id="map"></div>
+
+      <!-- Map Legend -->
+      <div class="map-legend" id="mapLegend">
+        <h4>Temperature (°C)</h4>
+        <div class="legend-scale">
+          <div class="legend-item" style="background:#313695"><span>Below 10</span></div>
+          <div class="legend-item" style="background:#4575b4"><span>10–15</span></div>
+          <div class="legend-item" style="background:#74add1"><span>15–20</span></div>
+          <div class="legend-item" style="background:#abd9e9"><span>20–25</span></div>
+          <div class="legend-item" style="background:#fee090"><span>25–30</span></div>
+          <div class="legend-item" style="background:#fdae61"><span>30–35</span></div>
+          <div class="legend-item" style="background:#f46d43"><span>35–40</span></div>
+          <div class="legend-item" style="background:#d73027"><span>40+</span></div>
+        </div>
+      </div>
+
+      <!-- Loading Overlay -->
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Loading weather data...</p>
+      </div>
+    </main>
+
+    <!-- ===== RIGHT SIDEBAR — City Details ===== -->
+    <aside class="sidebar-right" id="weatherPanel">
+      <div class="panel city-header" id="cityHeader">
+        <div class="city-title">
+          <h2 id="cityName">Select a City</h2>
+          <p id="cityState">Click any marker on the map</p>
+        </div>
+        <div class="city-icon" id="cityIcon">
+          <i class="fa-solid fa-map-location-dot"></i>
+        </div>
+      </div>
+
+      <!-- Current Weather -->
+      <div class="panel" id="currentWeatherPanel">
+        <h3><i class="fa-solid fa-sun"></i> Current Weather</h3>
+        <div class="weather-main" id="weatherMain">
+          <div class="temp-display">
+            <span class="temp-value" id="tempValue">--</span>
+            <span class="temp-unit">°C</span>
+          </div>
+          <div class="weather-desc" id="weatherDesc">--</div>
+          <div class="feels-like" id="feelsLike">Feels like: --°C</div>
+        </div>
+        <div class="weather-grid" id="weatherGrid">
+          <div class="weather-stat">
+            <i class="fa-solid fa-droplet"></i>
+            <span class="stat-label">Humidity</span>
+            <span class="stat-value" id="humidity">--%</span>
+          </div>
+          <div class="weather-stat">
+            <i class="fa-solid fa-wind"></i>
+            <span class="stat-label">Wind</span>
+            <span class="stat-value" id="windSpeed">-- km/h</span>
+          </div>
+          <div class="weather-stat">
+            <i class="fa-solid fa-cloud-rain"></i>
+            <span class="stat-label">Rainfall</span>
+            <span class="stat-value" id="rainfall">-- mm</span>
+          </div>
+          <div class="weather-stat">
+            <i class="fa-solid fa-eye"></i>
+            <span class="stat-label">Visibility</span>
+            <span class="stat-value" id="visibility">-- km</span>
+          </div>
+          <div class="weather-stat">
+            <i class="fa-solid fa-gauge-high"></i>
+            <span class="stat-label">Pressure</span>
+            <span class="stat-value" id="pressure">-- hPa</span>
+          </div>
+          <div class="weather-stat">
+            <i class="fa-solid fa-smog"></i>
+            <span class="stat-label">AQI</span>
+            <span class="stat-value" id="aqiValue">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7-Day Forecast -->
+      <div class="panel">
+        <h3><i class="fa-solid fa-calendar-days"></i> 7-Day Forecast</h3>
+        <div class="forecast-list" id="forecastList">
+          <p class="placeholder-text">Select a city to see forecast</p>
+        </div>
+      </div>
+
+      <!-- AQI Detail Panel -->
+      <div class="panel">
+        <h3><i class="fa-solid fa-smog"></i> Air Quality Index</h3>
+        <div id="aqiPanel">
+          <p class="placeholder-text">Select a city to see AQI details</p>
+        </div>
+      </div>
+
+      <!-- Climate Zone Badge -->
+      <div class="panel">
+        <h3><i class="fa-solid fa-earth-asia"></i> Climate Info</h3>
+        <div id="climateInfo">
+          <div class="climate-zone" id="climateZone">
+            <span class="zone-badge">--</span>
+          </div>
+          <div class="climate-stats">
+            <div class="cs-item">
+              <span>Avg Annual Rainfall</span>
+              <strong id="annualRainfall">--</strong>
+            </div>
+            <div class="cs-item">
+              <span>Season</span>
+              <strong id="currentSeason">--</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ===== BOTTOM STATS BAR ===== -->
+  <footer class="stats-bar">
+    <div class="stat-pill">
+      <i class="fa-solid fa-temperature-high"></i>
+      <span>Highest Today: <strong id="statHighest">--</strong></span>
+    </div>
+    <div class="stat-pill">
+      <i class="fa-solid fa-temperature-low"></i>
+      <span>Lowest Today: <strong id="statLowest">--</strong></span>
+    </div>
+    <div class="stat-pill">
+      <i class="fa-solid fa-cloud-showers-heavy"></i>
+      <span>Most Rainfall: <strong id="statRainfall">--</strong></span>
+    </div>
+    <div class="stat-pill">
+      <i class="fa-solid fa-smog"></i>
+      <span>Worst AQI: <strong id="statAqi">--</strong></span>
+    </div>
+    <div class="stat-pill">
+      <i class="fa-solid fa-city"></i>
+      <span>Cities Loaded: <strong id="statCities">0</strong></span>
+    </div>
+    <div class="stat-pill source">
+      <i class="fa-solid fa-satellite-dish"></i>
+      <span>Sources: OpenWeatherMap · IMD · Open-Meteo</span>
+    </div>
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Config (API Keys) -->
+  <script src="js/config.js"></script>
+  <!-- Main App -->
+  <script src="js/app.js"></script>
+
+</body>
+</html>
