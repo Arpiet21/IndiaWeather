@@ -67,6 +67,12 @@ INDIA_CITIES = [
     {"name": "Nagpur",      "state": "Maharashtra",      "lat": 21.1458, "lng": 79.0882, "zone": "Tropical Wet & Dry",   "annual_rainfall": "1205 mm"},
     {"name": "Bhopal",      "state": "Madhya Pradesh",   "lat": 23.2599, "lng": 77.4126, "zone": "Semi-Arid",            "annual_rainfall": "1146 mm"},
     {"name": "Bhubaneswar", "state": "Odisha",           "lat": 20.2961, "lng": 85.8245, "zone": "Tropical Monsoon",     "annual_rainfall": "1538 mm"},
+    # Sagar district — village-level coverage
+    {"name": "Sagar",       "state": "Madhya Pradesh",   "lat": 23.8388, "lng": 78.7378, "zone": "Semi-Arid",            "annual_rainfall": "1143 mm"},
+    {"name": "Bareli",      "state": "Madhya Pradesh",   "lat": 23.6500, "lng": 79.0167, "zone": "Semi-Arid",            "annual_rainfall": "1120 mm"},
+    {"name": "Silwani",     "state": "Madhya Pradesh",   "lat": 23.3167, "lng": 78.8333, "zone": "Semi-Arid",            "annual_rainfall": "1100 mm"},
+    {"name": "Raisen",      "state": "Madhya Pradesh",   "lat": 23.3325, "lng": 77.7893, "zone": "Semi-Arid",            "annual_rainfall": "1130 mm"},
+    {"name": "Damoh",       "state": "Madhya Pradesh",   "lat": 23.8327, "lng": 79.4419, "zone": "Semi-Arid",            "annual_rainfall": "1165 mm"},
 ]
 
 # ─── Models (mobile-friendly JSON contracts) ──────────────────

@@ -151,6 +151,8 @@ function generateMockForecast() {
 }
 
 // ─── Render Markers ───────────────────────────────────────────
+const VILLAGE_NAMES = ["Bareli", "Silwani", "Raisen", "Damoh", "Sagar"];
+
 function renderMarkers() {
   markersLayer.clearLayers();
 
@@ -158,26 +160,32 @@ function renderMarkers() {
     const data = cityWeatherData[city.name];
     if (!data) return;
 
-    const value  = getLayerValue(data);
-    const color  = getMarkerColor(data, activeLayer);
-    const label  = getLayerLabel(data, activeLayer);
+    const color     = getMarkerColor(data, activeLayer);
+    const label     = getLayerLabel(data, activeLayer);
+    const isVillage = VILLAGE_NAMES.includes(city.name);
 
     const icon = L.divIcon({
       className: "",
-      html: `<div class="weather-marker" style="border-color:${color};background:rgba(22,27,34,0.9)" title="${city.name}">
-               <span style="color:${color}">${label}</span>
-             </div>`,
-      iconAnchor: [28, 10],
+      html: isVillage
+        ? `<div class="village-marker" style="border-color:${color}" title="${city.name}">
+             <span class="village-pin">📍</span>
+             <span class="village-name">${city.name}</span>
+             <span class="village-val" style="color:${color}">${label}</span>
+           </div>`
+        : `<div class="weather-marker" style="border-color:${color};background:rgba(22,27,34,0.9)" title="${city.name}">
+             <span style="color:${color}">${label}</span>
+           </div>`,
+      iconAnchor: isVillage ? [40, 10] : [28, 10],
     });
 
     const marker = L.marker([city.lat, city.lng], { icon })
       .addTo(markersLayer)
       .on("click", () => showCityDetail(city.name));
 
-    marker.bindTooltip(`<b>${city.name}</b><br>${city.state}`, {
-      direction: "top", offset: [0, -8],
-      className: "dark-tooltip",
-    });
+    marker.bindTooltip(
+      `<b>${city.name}</b><br>${city.state}${isVillage ? '<br><span style="color:#f0883e">📍 Village marker</span>' : ''}`,
+      { direction: "top", offset: [0, -8], className: "dark-tooltip" }
+    );
   });
 }
 

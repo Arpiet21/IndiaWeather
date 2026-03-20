@@ -335,6 +335,26 @@ html, body {
 .weather-marker.cold { border-color: #74add1; }
 .weather-marker.rain { border-color: #388bfd; }
 
+/* ===== VILLAGE MARKERS ===== */
+.village-marker {
+  background: rgba(22,27,34,0.95);
+  border: 2px dashed var(--accent-orange);
+  border-radius: 8px;
+  padding: 3px 7px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  box-shadow: 0 0 8px rgba(240,136,62,0.3);
+  cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  transition: transform 0.15s;
+}
+.village-marker:hover { transform: scale(1.1); }
+.village-pin { font-size: 0.75rem; }
+.village-name { color: var(--accent-orange); font-weight: 700; }
+.village-val  { font-size: 0.68rem; }
+
 /* ===== RADAR BUTTON ===== */
 .btn-radar {
   background: var(--bg-card); border: 1px solid var(--border);
