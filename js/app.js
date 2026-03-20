@@ -455,13 +455,27 @@ function attachEvents() {
       }).addTo(map);
 
       try {
+        // Reverse geocode to get real village/town name
+        let placeName = "Your Location";
+        let placeState = `${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
+        try {
+          const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=14`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const geoData = await geoRes.json();
+          const addr = geoData.address || {};
+          placeName  = addr.village || addr.town || addr.suburb || addr.county || addr.city || geoData.display_name?.split(",")[0] || "Your Location";
+          placeState = [addr.county, addr.state].filter(Boolean).join(", ") || placeState;
+        } catch (_) {}
+
         const res = await fetch(`${CONFIG.API_BASE_URL}/location/weather/accurate?lat=${lat}&lon=${lon}`);
         if (!res.ok) throw new Error("Location weather fetch failed");
         const data = await res.json();
 
         // Show in right panel
-        document.getElementById("cityName").textContent  = data.name || "Your Location";
-        document.getElementById("cityState").textContent = `${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
+        document.getElementById("cityName").textContent  = placeName;
+        document.getElementById("cityState").textContent = placeState;
         document.getElementById("cityIcon").innerHTML    = `<span style="font-size:2rem">${data.icon}</span>`;
         document.getElementById("tempValue").textContent  = data.temp;
         document.getElementById("weatherDesc").textContent = data.description;
