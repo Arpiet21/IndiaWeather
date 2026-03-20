@@ -36,6 +36,12 @@ const INDIA_CITIES = [
   { name: "Nagpur",      state: "Maharashtra",       lat: 21.1458, lng: 79.0882, zone: "Tropical Wet & Dry",   rainfall: "1205 mm", season: "Pre-Monsoon" },
   { name: "Bhopal",      state: "Madhya Pradesh",    lat: 23.2599, lng: 77.4126, zone: "Semi-Arid",            rainfall: "1146 mm", season: "Summer" },
   { name: "Raipur",      state: "Chhattisgarh",      lat: 21.2514, lng: 81.6296, zone: "Tropical Wet & Dry",   rainfall: "1338 mm", season: "Pre-Monsoon" },
+  // Sagar district villages (Arjani area — user location)
+  { name: "Sagar",       state: "Madhya Pradesh",    lat: 23.8388, lng: 78.7378, zone: "Semi-Arid",            rainfall: "1143 mm", season: "Summer" },
+  { name: "Bareli",      state: "Madhya Pradesh",    lat: 23.6500, lng: 79.0167, zone: "Semi-Arid",            rainfall: "1120 mm", season: "Summer" },
+  { name: "Silwani",     state: "Madhya Pradesh",    lat: 23.3167, lng: 78.8333, zone: "Semi-Arid",            rainfall: "1100 mm", season: "Summer" },
+  { name: "Raisen",      state: "Madhya Pradesh",    lat: 23.3325, lng: 77.7893, zone: "Semi-Arid",            rainfall: "1130 mm", season: "Summer" },
+  { name: "Damoh",       state: "Madhya Pradesh",    lat: 23.8327, lng: 79.4419, zone: "Semi-Arid",            rainfall: "1165 mm", season: "Summer" },
 ];
 
 // ─── State ───────────────────────────────────────────────────
@@ -523,26 +529,51 @@ function renderHourlyPanel(data) {
     ? `Next rain at <strong>${nextRain.hour}</strong> — ${nextRain.rain_chance}% chance, ${nextRain.rain_mm}mm`
     : `No rain window detected`;
 
-  const rows = data.hours.map(h => `
-    <div class="hourly-row ${h.will_rain ? 'rainy' : ''}">
-      <span class="h-time">${h.hour}</span>
-      <span class="h-icon">${h.icon}</span>
-      <span class="h-temp">${h.temp}°</span>
-      <div class="h-bar-wrap">
-        <div class="h-bar" style="width:${h.rain_chance}%;background:${h.rain_chance>60?'#388bfd':h.rain_chance>30?'#74add1':'#30363d'}"></div>
-        <span class="h-pct">${h.rain_chance}%</span>
+  // Group hours by date (Today / Tomorrow / Date)
+  const today    = new Date().toDateString();
+  const tomorrow = new Date(Date.now() + 86400000).toDateString();
+
+  const grouped = {};
+  data.hours.forEach(h => {
+    const d    = new Date(h.time);
+    const key  = d.toDateString();
+    const label = key === today ? `Today — ${d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"short" })}`
+                : key === tomorrow ? `Tomorrow — ${d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"short" })}`
+                : d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"short", year:"numeric" });
+    if (!grouped[label]) grouped[label] = [];
+    grouped[label].push(h);
+  });
+
+  const sections = Object.entries(grouped).map(([dateLabel, hours]) => {
+    const rows = hours.map(h => `
+      <div class="hourly-row ${h.will_rain ? 'rainy' : ''}">
+        <span class="h-time">${h.hour}</span>
+        <span class="h-icon">${h.icon}</span>
+        <span class="h-temp">${h.temp}°C</span>
+        <div class="h-bar-wrap">
+          <div class="h-bar" style="width:${h.rain_chance}%;background:${h.rain_chance>60?'#388bfd':h.rain_chance>30?'#74add1':'#30363d'}"></div>
+          <span class="h-pct">${h.rain_chance}%</span>
+        </div>
+        <span class="h-rain">${h.rain_mm > 0 ? h.rain_mm+'mm' : '--'}</span>
+        <span class="h-wind">${h.wind_speed}km/h</span>
       </div>
-      <span class="h-rain">${h.rain_mm > 0 ? h.rain_mm+'mm' : '--'}</span>
-    </div>
-  `).join("");
+    `).join("");
+
+    return `
+      <div class="hourly-date-group">
+        <div class="hourly-date-header">${dateLabel}</div>
+        <div class="hourly-header">
+          <span>Time</span><span></span><span>Temp</span><span>Rain %</span><span>mm</span><span>Wind</span>
+        </div>
+        ${rows}
+      </div>
+    `;
+  }).join("");
 
   el.innerHTML = `
     <div class="hourly-summary">${summary}</div>
     <div class="hourly-next">${nextMsg}</div>
-    <div class="hourly-header">
-      <span>Hour</span><span></span><span>Temp</span><span>Rain %</span><span>mm</span>
-    </div>
-    <div class="hourly-list">${rows}</div>
+    ${sections}
   `;
 }
 

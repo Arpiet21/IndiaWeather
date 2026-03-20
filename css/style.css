@@ -354,25 +354,33 @@ html, body {
 .hourly-next {
   font-size: 0.76rem; color: var(--text-muted); margin-bottom: 10px;
 }
+.hourly-date-group { margin-bottom: 12px; }
+.hourly-date-header {
+  font-size: 0.78rem; font-weight: 700; color: var(--accent-blue);
+  background: rgba(56,139,253,0.08); border-left: 3px solid var(--accent-blue);
+  padding: 5px 8px; border-radius: 0 4px 4px 0; margin-bottom: 6px;
+}
 .hourly-header {
-  display: grid; grid-template-columns: 52px 24px 36px 1fr 36px;
+  display: grid; grid-template-columns: 52px 22px 46px 1fr 36px 52px;
   gap: 4px; font-size: 0.65rem; color: var(--text-muted);
   padding: 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px;
 }
 .hourly-list { display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow-y: auto; }
 .hourly-row {
-  display: grid; grid-template-columns: 52px 24px 36px 1fr 36px;
+  display: grid; grid-template-columns: 52px 22px 46px 1fr 36px 52px;
   align-items: center; gap: 4px;
-  padding: 4px 0; border-radius: 4px; font-size: 0.78rem;
+  padding: 5px 0; border-radius: 4px; font-size: 0.78rem;
+  border-bottom: 1px solid rgba(48,54,61,0.5);
 }
 .hourly-row.rainy { background: rgba(56,139,253,0.08); }
-.h-time { color: var(--text-muted); font-size: 0.72rem; }
+.h-time { color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; }
 .h-icon { text-align: center; }
-.h-temp { font-weight: 600; text-align: center; }
+.h-temp { font-weight: 600; text-align: center; color: var(--text-primary); }
 .h-bar-wrap { display: flex; align-items: center; gap: 4px; }
 .h-bar { height: 6px; border-radius: 3px; min-width: 2px; transition: width 0.3s; }
 .h-pct { font-size: 0.68rem; color: var(--text-muted); }
 .h-rain { font-size: 0.72rem; color: var(--accent-blue); text-align: right; }
+.h-wind { font-size: 0.68rem; color: var(--text-muted); text-align: right; }
 
 /* ===== REPORT PANEL ===== */
 .report-desc { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 10px; }
