@@ -340,17 +340,30 @@ async function fetchOWMForecast(lat, lng) {
     const data = await res.json();
     const list = data.list || [];
 
-    // Today's hourly (next 24h, every 3hrs)
-    const todaySlots = list.slice(0, 8).map(item => ({
-      time: new Date(item.dt * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
-      icon: icons[item.weather[0].icon.slice(0,2)] || "🌤️",
-      temp: Math.round(item.main.temp),
-      feels: Math.round(item.main.feels_like),
-      humidity: item.main.humidity,
-      rain: item.rain ? (item.rain["3h"] || 0).toFixed(1) : "0",
-      wind: Math.round(item.wind.speed * 3.6),
-      desc: item.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
-    }));
+    // Today's hourly (next 24h — all 8 OWM slots, every 3hrs)
+    // For true 1-hour data we load Open-Meteo separately below
+    const now = Date.now();
+    const todaySlots = list.slice(0, 8).map(item => {
+      const dt   = new Date(item.dt * 1000);
+      const isNow = Math.abs(item.dt * 1000 - now) < 3 * 60 * 60 * 1000;
+      const rainMm  = item.rain ? +(item.rain["3h"] || 0) : 0;
+      const rainChance = Math.min(100, Math.round((item.pop || 0) * 100));
+      return {
+        time:    dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+        isNow,
+        icon:    icons[item.weather[0].icon.slice(0,2)] || "🌤️",
+        temp:    +item.main.temp.toFixed(1),
+        feels:   +item.main.feels_like.toFixed(1),
+        humidity: item.main.humidity,
+        rainMm:  rainMm.toFixed(1),
+        rainChance,
+        wind:    Math.round(item.wind.speed * 3.6),
+        windDir: windDirection(item.wind.deg),
+        pressure: item.main.pressure,
+        desc:    item.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
+        willRain: rainMm > 0 || rainChance > 40,
+      };
+    });
 
     // Daily forecast — group by date, pick midday reading
     const dayMap = {};
@@ -378,31 +391,106 @@ async function fetchOWMForecast(lat, lng) {
       };
     });
 
-    renderTodayHourly(todaySlots);
     renderForecast(forecast);
+
+    // Load true 1-hour data from Open-Meteo (free, no key, satellite)
+    fetchOpenMeteoHourly(lat, lng);
+
   } catch(e) {
+    renderTodayHourly(todaySlots); // fallback to OWM 3-hr slots
     renderForecast([]);
   }
+}
+
+async function fetchOpenMeteoHourly(lat, lng) {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}`
+      + `&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,relativehumidity_2m,weathercode`
+      + `&forecast_days=2&timezone=Asia%2FKolkata`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    const h    = data.hourly;
+    const now  = new Date();
+
+    const wmoIcon = code => {
+      if (code === 0)            return "☀️";
+      if (code <= 3)             return "⛅";
+      if (code <= 48)            return "🌫️";
+      if (code <= 67)            return "🌧️";
+      if (code <= 77)            return "❄️";
+      if (code <= 82)            return "🌦️";
+      if (code <= 99)            return "⛈️";
+      return "🌤️";
+    };
+
+    // Get next 24 slots from current hour
+    const startIdx = h.time.findIndex(t => new Date(t) >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours()));
+    const slots = h.time.slice(startIdx, startIdx + 24).map((t, i) => {
+      const idx = startIdx + i;
+      const dt  = new Date(t);
+      const isNow = i === 0;
+      const rainMm     = +(h.precipitation[idx] || 0).toFixed(1);
+      const rainChance = Math.round(h.precipitation_probability[idx] || 0);
+      return {
+        time:     dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+        isNow,
+        icon:     wmoIcon(h.weathercode[idx]),
+        temp:     +h.temperature_2m[idx].toFixed(1),
+        feels:    +h.apparent_temperature[idx].toFixed(1),
+        humidity: Math.round(h.relativehumidity_2m[idx]),
+        rainMm:   rainMm.toFixed(1),
+        rainChance,
+        wind:     Math.round(h.windspeed_10m[idx]),
+        windDir:  windDirection(h.winddirection_10m[idx]),
+        willRain: rainMm > 0 || rainChance > 40,
+      };
+    });
+
+    renderTodayHourly(slots);
+  } catch(e) {
+    console.warn("Open-Meteo hourly failed:", e.message);
+  }
+}
+
+function windDirection(deg) {
+  const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+  return dirs[Math.round(deg / 45) % 8];
 }
 
 function renderTodayHourly(slots) {
   const el = document.getElementById("todayHourly");
   if (!el) return;
+
+  const rainAny = slots.some(s => s.willRain);
+  const maxRain = Math.max(...slots.map(s => +s.rainMm));
+
   el.innerHTML = `
-    <div class="hourly-scroll">
-      ${slots.map(s => `
-        <div class="today-slot">
-          <div class="ts-time">${s.time}</div>
-          <div class="ts-icon">${s.icon}</div>
-          <div class="ts-temp">${s.temp}°</div>
-          <div class="ts-desc">${s.desc}</div>
-          <div class="ts-meta">
-            <span>💧 ${s.humidity}%</span>
-            <span>🌧️ ${s.rain}mm</span>
-            <span>💨 ${s.wind}km/h</span>
+    <div class="hf-summary ${rainAny ? 'hf-rain' : 'hf-clear'}">
+      ${rainAny
+        ? `🌧️ Rain expected — up to ${maxRain}mm in next 24h`
+        : `☀️ No significant rain in next 24h`}
+    </div>
+    <div class="hf-table">
+      <div class="hf-head">
+        <span>Time</span><span></span>
+        <span>Temp</span><span>Feels</span>
+        <span>Rain%</span><span>mm</span>
+        <span>Humid</span><span>Wind</span>
+      </div>
+      <div class="hf-list-wrap">
+        ${slots.map(s => `
+          <div class="hf-row ${s.isNow ? 'hf-now' : ''} ${s.willRain ? 'hf-rainy' : ''}">
+            <span class="hf-time">${s.isNow ? '▶ Now' : s.time}</span>
+            <span class="hf-icon">${s.icon}</span>
+            <span class="hf-temp">${s.temp}°</span>
+            <span class="hf-feels">${s.feels}°</span>
+            <span class="hf-pct ${s.rainChance > 60 ? 'hf-wet' : ''}">${s.rainChance}%</span>
+            <span class="hf-mm ${+s.rainMm > 0 ? 'hf-wet' : ''}">${+s.rainMm > 0 ? s.rainMm+'mm' : '—'}</span>
+            <span class="hf-hum">${s.humidity}%</span>
+            <span class="hf-wind">${s.wind} <small>${s.windDir}</small></span>
           </div>
-        </div>
-      `).join("")}
+        `).join("")}
+      </div>
     </div>
   `;
 }
