@@ -317,8 +317,9 @@ function showCityDetail(cityName) {
   else if (data.temp >= 25) tempEl.style.color = "#d29922";
   else tempEl.style.color = "#79c0ff";
 
-  // Forecast
-  renderForecast(data.forecast);
+  // Forecast — fetch directly from OWM
+  renderForecast(null); // show loading
+  fetchOWMForecast(meta.lat, meta.lng);
 
   // Climate info
   document.querySelector(".zone-badge").textContent = meta.zone;
@@ -327,6 +328,83 @@ function showCityDetail(cityName) {
 
   // Pan map
   map.panTo([meta.lat, meta.lng], { animate: true, duration: 0.8 });
+}
+
+// ─── Fetch OWM Forecast Directly ─────────────────────────────
+async function fetchOWMForecast(lat, lng) {
+  const icons = {"01":"☀️","02":"⛅","03":"☁️","04":"☁️","09":"🌧️","10":"🌦️","11":"⛈️","13":"❄️","50":"🌫️"};
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${CONFIG.OWM_API_KEY}&units=metric`
+    );
+    const data = await res.json();
+    const list = data.list || [];
+
+    // Today's hourly (next 24h, every 3hrs)
+    const todaySlots = list.slice(0, 8).map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+      icon: icons[item.weather[0].icon.slice(0,2)] || "🌤️",
+      temp: Math.round(item.main.temp),
+      feels: Math.round(item.main.feels_like),
+      humidity: item.main.humidity,
+      rain: item.rain ? (item.rain["3h"] || 0).toFixed(1) : "0",
+      wind: Math.round(item.wind.speed * 3.6),
+      desc: item.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
+    }));
+
+    // Daily forecast — group by date, pick midday reading
+    const dayMap = {};
+    list.forEach(item => {
+      const date = new Date(item.dt * 1000);
+      const key  = date.toDateString();
+      if (!dayMap[key]) dayMap[key] = [];
+      dayMap[key].push(item);
+    });
+
+    const forecast = Object.entries(dayMap).slice(0, 7).map(([dateStr, items]) => {
+      const hi  = Math.round(Math.max(...items.map(i => i.main.temp_max)));
+      const lo  = Math.round(Math.min(...items.map(i => i.main.temp_min)));
+      const mid = items[Math.floor(items.length / 2)];
+      const date = new Date(dateStr);
+      return {
+        day:  date.toLocaleDateString("en-IN", { weekday: "short" }),
+        date: date.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        icon: icons[mid.weather[0].icon.slice(0,2)] || "🌤️",
+        desc: mid.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
+        hi, lo,
+        humidity: mid.main.humidity,
+        rain: mid.rain ? (mid.rain["3h"] || 0).toFixed(1) : "0",
+        wind: Math.round(mid.wind.speed * 3.6),
+      };
+    });
+
+    renderTodayHourly(todaySlots);
+    renderForecast(forecast);
+  } catch(e) {
+    renderForecast([]);
+  }
+}
+
+function renderTodayHourly(slots) {
+  const el = document.getElementById("todayHourly");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="hourly-scroll">
+      ${slots.map(s => `
+        <div class="today-slot">
+          <div class="ts-time">${s.time}</div>
+          <div class="ts-icon">${s.icon}</div>
+          <div class="ts-temp">${s.temp}°</div>
+          <div class="ts-desc">${s.desc}</div>
+          <div class="ts-meta">
+            <span>💧 ${s.humidity}%</span>
+            <span>🌧️ ${s.rain}mm</span>
+            <span>💨 ${s.wind}km/h</span>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function aqiInfo(aqi) {
@@ -371,15 +449,25 @@ function updateAqiPanel(aqi) {
 
 function renderForecast(forecast) {
   const el = document.getElementById("forecastList");
-  if (!forecast || !forecast.length) {
+  if (!forecast) {
+    el.innerHTML = `<p class="placeholder-text">Loading forecast...</p>`;
+    return;
+  }
+  if (!forecast.length) {
     el.innerHTML = `<p class="placeholder-text">Forecast unavailable</p>`;
     return;
   }
-  el.innerHTML = forecast.map(f => `
-    <div class="forecast-row">
-      <span class="day">${f.day}</span>
+  el.innerHTML = forecast.map((f, i) => `
+    <div class="forecast-row ${i === 0 ? 'today-row' : ''}">
+      <div class="fc-day-wrap">
+        <span class="day">${i === 0 ? 'Today' : f.day}</span>
+        <span class="fc-date">${f.date || ""}</span>
+      </div>
       <span class="icon">${f.icon}</span>
-      <span class="desc">${f.desc || f.description || ""}</span>
+      <div class="fc-info">
+        <span class="desc">${f.desc || f.description || ""}</span>
+        <span class="fc-sub">💧${f.humidity || "--"}% 🌧️${f.rain || 0}mm 💨${f.wind || "--"}km/h</span>
+      </div>
       <div class="temps">
         <span class="hi">${f.hi}°</span>
         <span class="lo">${f.lo}°</span>
@@ -549,7 +637,7 @@ function attachEvents() {
         document.getElementById("pressure").textContent   = `${data.pressure} hPa`;
         document.getElementById("aqiValue").textContent   = aqiLabel(data.aqi);
         updateAqiPanel(data.aqi);
-        renderForecast(data.forecast);
+        fetchOWMForecast(lat, lon);
         document.querySelector(".zone-badge").textContent = "Your Location";
         document.getElementById("annualRainfall").textContent = "--";
         document.getElementById("currentSeason").textContent  = "Live";
