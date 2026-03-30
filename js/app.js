@@ -425,24 +425,35 @@ async function fetchOpenMeteoHourly(lat, lng) {
 
     // Get next 24 slots from current hour
     const startIdx = h.time.findIndex(t => new Date(t) >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours()));
+    const today    = new Date().toDateString();
+    const tomorrow = new Date(Date.now() + 86400000).toDateString();
+
     const slots = h.time.slice(startIdx, startIdx + 24).map((t, i) => {
-      const idx = startIdx + i;
-      const dt  = new Date(t);
-      const isNow = i === 0;
+      const idx        = startIdx + i;
+      const dt         = new Date(t);
+      const isNow      = i === 0;
       const rainMm     = +(h.precipitation[idx] || 0).toFixed(1);
       const rainChance = Math.round(h.precipitation_probability[idx] || 0);
+      const dateLabel  = dt.toDateString() === today
+        ? `Today, ${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+        : dt.toDateString() === tomorrow
+          ? `Tomorrow, ${dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+          : dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+
       return {
-        time:     dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+        time:      dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+        dateLabel,
+        dateKey:   dt.toDateString(),
         isNow,
-        icon:     wmoIcon(h.weathercode[idx]),
-        temp:     +h.temperature_2m[idx].toFixed(1),
-        feels:    +h.apparent_temperature[idx].toFixed(1),
-        humidity: Math.round(h.relativehumidity_2m[idx]),
-        rainMm:   rainMm.toFixed(1),
+        icon:      wmoIcon(h.weathercode[idx]),
+        temp:      +h.temperature_2m[idx].toFixed(1),
+        feels:     +h.apparent_temperature[idx].toFixed(1),
+        humidity:  Math.round(h.relativehumidity_2m[idx]),
+        rainMm:    rainMm.toFixed(1),
         rainChance,
-        wind:     Math.round(h.windspeed_10m[idx]),
-        windDir:  windDirection(h.winddirection_10m[idx]),
-        willRain: rainMm > 0 || rainChance > 40,
+        wind:      Math.round(h.windspeed_10m[idx]),
+        windDir:   windDirection(h.winddirection_10m[idx]),
+        willRain:  rainMm > 0 || rainChance > 40,
       };
     });
 
@@ -478,7 +489,12 @@ function renderTodayHourly(slots) {
         <span>Humid</span><span>Wind</span>
       </div>
       <div class="hf-list-wrap">
-        ${slots.map(s => `
+        ${slots.map((s, i) => {
+          const showDate = i === 0 || s.dateKey !== slots[i-1].dateKey;
+          const dateSep  = showDate
+            ? `<div class="hf-date-sep">${s.dateLabel}</div>`
+            : "";
+          return `${dateSep}
           <div class="hf-row ${s.isNow ? 'hf-now' : ''} ${s.willRain ? 'hf-rainy' : ''}">
             <span class="hf-time">${s.isNow ? '▶ Now' : s.time}</span>
             <span class="hf-icon">${s.icon}</span>
@@ -488,8 +504,8 @@ function renderTodayHourly(slots) {
             <span class="hf-mm ${+s.rainMm > 0 ? 'hf-wet' : ''}">${+s.rainMm > 0 ? s.rainMm+'mm' : '—'}</span>
             <span class="hf-hum">${s.humidity}%</span>
             <span class="hf-wind">${s.wind} <small>${s.windDir}</small></span>
-          </div>
-        `).join("")}
+          </div>`;
+        }).join("")}
       </div>
     </div>
   `;

@@ -325,6 +325,16 @@ html, body {
 
 .hf-list-wrap { max-height: 340px; overflow-y: auto; }
 
+.hf-date-sep {
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--accent-blue);
+  background: rgba(56,139,253,0.08);
+  border-left: 3px solid var(--accent-blue);
+  padding: 5px 8px; margin: 6px 0 2px;
+  border-radius: 0 4px 4px 0;
+  letter-spacing: 0.03em;
+}
+
 /* ===== FORECAST ENHANCED ===== */
 .forecast-row { padding: 9px 0; }
 .today-row { background: rgba(56,139,253,0.06); border-radius: 6px; padding: 9px 6px; }
