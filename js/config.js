@@ -4,8 +4,10 @@
 // ============================================================
 
 const CONFIG = {
-  // Python FastAPI backend URL
-  API_BASE_URL: "http://localhost:8000",
+  // Auto-switch: localhost in dev, Render URL in production
+  API_BASE_URL: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : "https://indiaweather-api.onrender.com",
 
   // OpenWeatherMap API key (get free key at openweathermap.org)
   OWM_API_KEY: "6ad009b9b9276360ac5d9d6accb14595",

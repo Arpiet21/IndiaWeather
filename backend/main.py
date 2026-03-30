@@ -28,7 +28,12 @@ app = FastAPI(
 # CORS — allow web app, React Native (Expo), Flutter
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Tighten in production
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://indiaweather.vercel.app",
+        "https://*.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
