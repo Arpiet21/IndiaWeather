@@ -103,8 +103,8 @@ async function loadAllCityWeather() {
     document.getElementById("statCities").textContent = data.cities.length;
 
   } catch (err) {
-    console.warn("Backend unavailable, loading mock data:", err.message);
-    loadMockData();
+    console.warn("Backend unavailable, trying OWM directly:", err.message);
+    await loadFromOWMDirect();
   } finally {
     showLoading(false);
   }
@@ -134,6 +134,43 @@ function loadMockData() {
   updateStatsBar(mockData);
   updateTimestamp("Mock data (start backend for live)");
   document.getElementById("statCities").textContent = mockData.length;
+}
+
+// ─── Direct OWM Fallback (when backend offline) ───────────────
+async function loadFromOWMDirect() {
+  try {
+    const icons = {"01":"☀️","02":"⛅","03":"☁️","04":"☁️","09":"🌧️","10":"🌦️","11":"⛈️","13":"❄️","50":"🌫️"};
+    const results = await Promise.all(
+      INDIA_CITIES.map(async city => {
+        try {
+          const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${city.lat}&lon=${city.lng}&appid=${CONFIG.OWM_API_KEY}&units=metric`);
+          const d = await res.json();
+          return {
+            ...city,
+            name:        city.name,
+            temp:        Math.round(d.main.temp * 10) / 10,
+            feels_like:  Math.round(d.main.feels_like * 10) / 10,
+            humidity:    d.main.humidity,
+            wind_speed:  Math.round(d.wind.speed * 3.6 * 10) / 10,
+            pressure:    d.main.pressure,
+            visibility:  (d.visibility || 0) / 1000,
+            rain_1h:     d.rain ? (d.rain["1h"] || 0) : 0,
+            aqi:         null,
+            description: d.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
+            icon:        icons[d.weather[0].icon.slice(0,2)] || "🌤️",
+          };
+        } catch { return { ...city, temp: 0, description: "Unavailable" }; }
+      })
+    );
+    cityWeatherData = {};
+    results.forEach(c => { cityWeatherData[c.name] = c; });
+    renderMarkers();
+    updateStatsBar(results);
+    updateTimestamp("Live (OWM direct) — " + new Date().toLocaleTimeString("en-IN"));
+    document.getElementById("statCities").textContent = results.length;
+  } catch (e) {
+    loadMockData();
+  }
 }
 
 function generateMockForecast() {
@@ -469,9 +506,34 @@ function attachEvents() {
           placeState = [addr.county, addr.state].filter(Boolean).join(", ") || placeState;
         } catch (_) {}
 
-        const res = await fetch(`${CONFIG.API_BASE_URL}/location/weather/accurate?lat=${lat}&lon=${lon}`);
-        if (!res.ok) throw new Error("Location weather fetch failed");
-        const data = await res.json();
+        let data;
+        try {
+          const res = await fetch(`${CONFIG.API_BASE_URL}/location/weather/accurate?lat=${lat}&lon=${lon}`);
+          if (!res.ok) throw new Error("Backend unavailable");
+          data = await res.json();
+        } catch (_) {
+          // Fallback: call OWM directly from browser
+          const [owmRes, aqiRes] = await Promise.all([
+            fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${CONFIG.OWM_API_KEY}&units=metric`),
+            fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${CONFIG.OWM_API_KEY}`)
+          ]);
+          const owm = await owmRes.json();
+          const aqi = await aqiRes.json();
+          const icons = {"01":"☀️","02":"⛅","03":"☁️","04":"☁️","09":"🌧️","10":"🌦️","11":"⛈️","13":"❄️","50":"🌫️"};
+          data = {
+            temp:        Math.round(owm.main.temp * 10) / 10,
+            feels_like:  Math.round(owm.main.feels_like * 10) / 10,
+            humidity:    owm.main.humidity,
+            wind_speed:  Math.round(owm.wind.speed * 3.6 * 10) / 10,
+            pressure:    owm.main.pressure,
+            visibility:  (owm.visibility || 0) / 1000,
+            rain_1h:     owm.rain ? (owm.rain["1h"] || 0) : 0,
+            aqi:         aqi.list?.[0]?.main?.aqi * 50 || null,
+            description: owm.weather[0].description.replace(/\b\w/g, c => c.toUpperCase()),
+            icon:        icons[owm.weather[0].icon.slice(0,2)] || "🌤️",
+            forecast:    null,
+          };
+        }
 
         // Show in right panel
         document.getElementById("cityName").textContent  = placeName;
