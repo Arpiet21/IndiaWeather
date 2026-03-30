@@ -487,3 +487,107 @@ html, body {
 ::-webkit-scrollbar-track { background: var(--bg-dark); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media (max-width: 768px) {
+
+  html, body { overflow: auto; }
+
+  /* Header — stack search below logo */
+  .header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .header-left  { flex: 1; }
+  .header-center { order: 3; width: 100%; max-width: 100%; }
+  .header-right { gap: 8px; }
+  .tagline { display: none; }
+
+  /* Hide Rain Radar label, show icon only */
+  .btn-radar span { display: none; }
+  .last-updated span { display: none; }
+
+  /* Layout — stack sidebars below map */
+  .app-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  /* Left sidebar — horizontal scrolling pills on mobile */
+  .sidebar-left {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    gap: 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-left .panel {
+    flex-shrink: 0;
+    min-width: 160px;
+    max-width: 220px;
+  }
+  /* Layer buttons — horizontal on mobile */
+  .layer-buttons { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .layer-btn { padding: 6px 10px; font-size: 0.78rem; }
+  .layer-btn span { display: none; }
+
+  /* Map — full width, fixed height */
+  .map-wrapper {
+    width: 100%;
+    height: 55vw;
+    min-height: 260px;
+    max-height: 380px;
+  }
+
+  /* Right sidebar — full width below map */
+  .sidebar-right {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 10px;
+  }
+
+  /* Temperature — smaller on mobile */
+  .temp-value { font-size: 2.6rem; }
+
+  /* Weather grid — 3 cols on mobile */
+  .weather-grid { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Forecast rows — compact */
+  .forecast-row .desc { display: none; }
+
+  /* Stats bar — horizontal scroll */
+  .stats-bar {
+    padding: 0 10px;
+    gap: 6px;
+    height: 38px;
+  }
+  .stat-pill { font-size: 0.7rem; }
+  .stat-pill.source { display: none; }
+
+  /* Map legend — smaller */
+  .map-legend { bottom: 8px; left: 8px; padding: 8px 10px; }
+  .legend-item { width: 24px; height: 14px; }
+
+  /* Modal — full screen on mobile */
+  .modal { width: 95vw; padding: 18px; }
+
+  /* Hourly panel — compact columns */
+  .hourly-header,
+  .hourly-row { grid-template-columns: 46px 20px 40px 1fr 30px; }
+  .h-wind { display: none; }
+}
+
+@media (max-width: 420px) {
+  .header { padding: 8px 10px; }
+  .logo span { font-size: 1rem; }
+  .btn-locate { padding: 6px 10px; font-size: 0.76rem; }
+  .map-wrapper { min-height: 220px; }
+  .weather-grid { grid-template-columns: 1fr 1fr; }
+  .temp-value { font-size: 2.2rem; }
+}
