@@ -6,6 +6,7 @@
 - Weather Data: OpenWeatherMap API + Open-Meteo (satellite, no key needed)
 - Rain Radar: RainViewer tiles (free, no key)
 - Repo: https://github.com/Arpiet21/IndiaWeather
+- Live: https://indiaweather.vercel.app
 
 ## Run Locally
 - Backend: `cd backend && python -m uvicorn main:app --reload --port 8000`
@@ -33,21 +34,25 @@
 3. GPS "My Location" — satellite-accurate weather for any coordinates including villages
 4. Dual-source accuracy — Open-Meteo (satellite) + OWM cross-validated, takes max rain value
 5. Rain Radar toggle — live RainViewer precipitation overlay on map
-6. Hourly rain forecast panel — 24hr rain probability bars, next rain window, total mm
-7. AQI detail panel — color-coded scale 0–500, category, who's affected, health advice
-8. 7-day forecast — day, icon, description, high/low temps
-9. Monsoon tracker, active alerts sidebar, stats bar across India
-10. Report Actual Weather modal — crowd-sourced ground truth for rural accuracy
-11. Mobile-ready REST API — all endpoints usable from React Native / Flutter
-12. Pushed to GitHub: https://github.com/Arpiet21/IndiaWeather
+6. Hourly rain forecast — every hour for 24h via Open-Meteo, with Today/Tomorrow date separators
+7. Today's hourly table — Time, Icon, Temp, Feels Like, Rain%, mm, Humidity, Wind direction
+8. AQI detail panel — color-coded scale 0–500, category, who's affected, health advice
+9. 7-day forecast — date, icon, description, humidity, rain, wind, hi/lo per day
+10. Monsoon tracker, active alerts sidebar, stats bar across India
+11. Report Actual Weather modal — crowd-sourced ground truth for rural accuracy
+12. My Location — reverse geocodes GPS to real village name via Nominatim (not OWM station name)
+13. OWM direct fallback — app works fully on Vercel without backend (calls OWM from browser)
+14. Mobile-friendly — responsive layout, PWA meta tags, installable on iPhone/Android
+15. Deployed to Vercel: https://indiaweather.vercel.app
 
 ## Known Limitation Fixed
 - OWM uses nearest weather station (40–80 km away for villages like Arjani)
 - Fixed by switching to Open-Meteo satellite data + cross-validating both sources
+- My Location now shows real village name (Arjani/Gundrai) not OWM station name (Sodarpur)
 
 ## Next
-13. Mobile App — React Native or Flutter using same FastAPI endpoints
-14. Deploy — backend to Render/Railway, frontend to Vercel for public access
-15. IMD integration — official India Met Department bulletins for state-level alerts
-16. Persist community reports — PostgreSQL instead of in-memory store
-17. Expand cities — grow from 25 to 100+ districts across India
+16. Mobile App — React Native or Flutter using same FastAPI endpoints
+17. Deploy backend — Render/Railway so satellite accuracy works on live site
+18. IMD integration — official India Met Department bulletins for state-level alerts
+19. Persist community reports — PostgreSQL instead of in-memory store
+20. Expand cities — grow from 25 to 100+ districts across India
